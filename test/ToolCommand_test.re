@@ -128,6 +128,61 @@ describe("ToolCommand.render", () => {
   );
 });
 
+describe("ToolCommand.render in shell mode", () => {
+  let shellSpec =
+    switch (
+      ToolSpec.decode(
+        "tools",
+        Js.Json.parseExn(
+          {|{"logs": {
+  "description": "Logs",
+  "shell": true,
+  "command": "journalctl -u {unit} {since} | tail -n {lines} | awk '{print $1}'",
+  "parameters": {
+    "unit": {"type": "string", "required": true},
+    "since": {"type": "string", "flag": "--since"},
+    "lines": {"type": "integer"}
+  }
+}}|},
+        ),
+      )
+    ) {
+    | Ok([spec]) => spec
+    | _ => failwith("invalid shell spec")
+    };
+  let renderShell = text =>
+    ToolCommand.validate(shellSpec, args(text))
+    |> Result.map(values =>
+         ToolCommand.render(shellSpec, values, ~home="/home/me")
+       );
+
+  test("quotes injected values and keeps other braces", () =>
+    expect(
+      renderShell(
+        {|{"unit": "a'; rm -rf / #", "since": "1 hour ago", "lines": 5}|},
+      ),
+    )
+    |> toEqual(
+         Ok([
+           "/bin/sh",
+           "-c",
+           "journalctl -u 'a'\\''; rm -rf / #' '--since' '1 hour ago' | tail -n '5' | awk '{print $1}'",
+         ]),
+       )
+  );
+
+  test("replaces absent parameters with nothing", () =>
+    expect(renderShell({|{"unit": "ssh"}|}))
+    |> toEqual(
+         Ok([
+           "/bin/sh",
+           "-c",
+           "journalctl -u 'ssh'  | tail -n  | awk '{print $1}'",
+         ]),
+       )
+  );
+});
+
 describe("ToolCommand.environment", () =>
   test("sets literals and present parameters", () =>
     expect(

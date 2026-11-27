@@ -97,7 +97,8 @@ Each entry of `tools` registers a tool that runs a command **without a shell**: 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `description` | string | — | Required. Shown to the LLM. |
-| `command` | string[] | — | Required. The first token is the program; `{name}` tokens are replaced by parameters. A placeholder must be a whole token. `~` at the start of a literal token is the home directory. |
+| `command` | string[] | — | Required. The first token is the program; `{name}` tokens are replaced by parameters. A placeholder must be a whole token. `~` at the start of a literal token is the home directory. A string in [shell mode](#shell-mode). |
+| `shell` | boolean | `false` | Run `command` through `/bin/sh`. |
 | `parameters` | object | `{}` | Parameter name → definition (below). Every parameter must be used, every placeholder declared. |
 | `timeout` | integer | `120` | Seconds before the process group is killed. |
 | `cwd` | string | project directory | Working directory, relative to the project directory. |
@@ -118,6 +119,25 @@ Parameter definition:
 | `flag` | Option inserted before the value, for example `-m`. Repeated before each item of an array. A boolean with a flag only emits the flag when `true`. |
 
 An absent parameter removes its token from the command. The result returned to the LLM shows stdout and stderr separately, followed by the exit code; a non-zero exit code is an error.
+
+### Shell mode
+
+Set `"shell": true` to run a command that needs pipes, redirections or chaining. `command` is then a string run with `/bin/sh -c`, and every injected value is single-quoted, so it is never interpreted by the shell. Only `{name}` where `name` is a declared parameter is replaced: other braces, such as `awk '{print $1}'`, stay as written. An absent parameter is replaced by nothing.
+
+```json
+"recent_logs": {
+  "description": "Show the last lines of a systemd unit's logs",
+  "shell": true,
+  "command": "journalctl -u {unit} {since} --no-pager | tail -n {lines}",
+  "parameters": {
+    "unit": { "type": "string", "required": true, "pattern": "^[a-zA-Z0-9@._-]+$" },
+    "since": { "type": "string", "flag": "--since" },
+    "lines": { "type": "integer", "required": true }
+  }
+}
+```
+
+The LLM never chooses the mode: it is set by the configuration.
 
 ## Development
 

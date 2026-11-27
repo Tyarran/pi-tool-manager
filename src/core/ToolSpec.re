@@ -21,10 +21,14 @@ type token =
   | Literal(string)
   | Placeholder(string);
 
+type command =
+  | Argv(list(token))
+  | Shell(string);
+
 type t = {
   name: string,
   description: string,
-  command: list(token),
+  command,
   parameters: list(param),
   timeout: int,
   cwd: option(string),
@@ -182,9 +186,13 @@ let decodeToken = (path, text) =>
   | _ => Ok(Literal(text))
   };
 
-let decodeCommand = (path, json) =>
+let decodeArgv = (path, json) =>
   switch (decodeStrings(path, json)) {
-  | Error(_) as error => error
+  | Error(_) =>
+    fail(
+      path,
+      "must be an array of strings (set shell to true to run a shell command)",
+    )
   | Ok([]) => fail(path, "must not be empty")
   | Ok(tokens) =>
     let* tokens =
@@ -196,9 +204,20 @@ let decodeCommand = (path, json) =>
     switch (tokens) {
     | [Placeholder(_), ..._] =>
       fail(path ++ "[0]", "must be the literal program to run")
-    | tokens => Ok(tokens)
+    | tokens => Ok(Argv(tokens))
     };
   };
+
+let decodeShell = (path, json) =>
+  switch (Js.Json.classify(json)) {
+  | JSONString(text) when String.trim(text) == "" =>
+    fail(path, "must not be empty")
+  | JSONString(text) => Ok(Shell(text))
+  | _ => fail(path, "must be a string when shell is true")
+  };
+
+let decodeCommand = (~shell, path, json) =>
+  shell ? decodeShell(path, json) : decodeArgv(path, json);
 
 let decodeEnv = (path, json) =>
   switch (Js.Json.classify(json)) {
@@ -225,9 +244,23 @@ let placeholders = tokens =>
     tokens,
   );
 
+let shellPlaceholder = name => "{" ++ name ++ "}";
+
+let commandPlaceholders = (command, ~declared) =>
+  switch (command) {
+  | Argv(tokens) => placeholders(tokens)
+  | Shell(text) =>
+    List.filter(
+      name => Js.String.includes(~search=shellPlaceholder(name), text),
+      declared,
+    )
+  };
+
 let checkReferences = (path, command, env, parameters) => {
   let declared = List.map((param: param) => param.name, parameters);
-  let used = placeholders(command @ List.map(snd, env));
+  let used =
+    commandPlaceholders(command, ~declared)
+    @ placeholders(List.map(snd, env));
   let undeclared = List.filter(name => !List.mem(name, declared), used);
   let unused = List.filter(name => !List.mem(name, used), declared);
   let unknownConditions =
@@ -259,10 +292,16 @@ let decodeTool = (path, name, json) =>
       | None => fail(path ++ ".description", "is required")
       | Some(json) => decodeString(path ++ ".description", json)
       };
+    let* shell = decodeOptional(decodeBool, path, dict, "shell");
     let* command =
       switch (field(dict, "command")) {
       | None => fail(path ++ ".command", "is required")
-      | Some(json) => decodeCommand(path ++ ".command", json)
+      | Some(json) =>
+        decodeCommand(
+          ~shell=Option.value(shell, ~default=false),
+          path ++ ".command",
+          json,
+        )
       };
     let* parameters = decodeOptional(decodeParams, path, dict, "parameters");
     let parameters = Option.value(parameters, ~default=[]);

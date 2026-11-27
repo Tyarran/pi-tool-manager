@@ -172,19 +172,41 @@ let arguments = (param: param, value) =>
 let paramOf = (spec: ToolSpec.t, name) =>
   List.find((param: param) => param.name == name, spec.parameters);
 
-let render = (spec: ToolSpec.t, values, ~home) =>
-  List.concat_map(
-    token =>
-      switch (token) {
-      | Literal(text) => [expandHome(~home, text)]
-      | Placeholder(name) =>
-        switch (List.assoc_opt(name, values)) {
-        | None => []
-        | Some(value) => arguments(paramOf(spec, name), value)
-        }
-      },
-    spec.command,
+let shellProgram = "/bin/sh";
+
+let renderShell = (spec: ToolSpec.t, values, text) =>
+  List.fold_left(
+    (text, param: param) => {
+      let replacement =
+        switch (List.assoc_opt(param.name, values)) {
+        | None => ""
+        | Some(value) => ShellQuote.join(arguments(param, value))
+        };
+      text
+      |> Js.String.split(~sep=ToolSpec.shellPlaceholder(param.name))
+      |> Js.Array.join(~sep=replacement);
+    },
+    text,
+    spec.parameters,
   );
+
+let render = (spec: ToolSpec.t, values, ~home) =>
+  switch (spec.command) {
+  | Shell(text) => [shellProgram, "-c", renderShell(spec, values, text)]
+  | Argv(tokens) =>
+    List.concat_map(
+      token =>
+        switch (token) {
+        | Literal(text) => [expandHome(~home, text)]
+        | Placeholder(name) =>
+          switch (List.assoc_opt(name, values)) {
+          | None => []
+          | Some(value) => arguments(paramOf(spec, name), value)
+          }
+        },
+      tokens,
+    )
+  };
 
 let environment = (spec: ToolSpec.t, values, ~home) =>
   List.filter_map(

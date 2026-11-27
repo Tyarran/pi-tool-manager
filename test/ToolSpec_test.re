@@ -33,13 +33,14 @@ describe("ToolSpec.decode", () => {
            {
              name: "jj",
              description: "Run jj",
-             command: [
-               Literal("jj"),
-               Placeholder("subcommand"),
-               Placeholder("message"),
-               Placeholder("args"),
-               Literal("--no-pager"),
-             ],
+             command:
+               Argv([
+                 Literal("jj"),
+                 Placeholder("subcommand"),
+                 Placeholder("message"),
+                 Placeholder("args"),
+                 Literal("--no-pager"),
+               ]),
              parameters: [
                {
                  name: "subcommand",
@@ -98,6 +99,18 @@ describe("ToolSpec.decode", () => {
     |> toEqual(Ok((120, [], [])))
   );
 
+  test("decodes a shell command and keeps other braces literal", () =>
+    expect(
+      decode(
+        {|{"logs": {"description": "Logs", "shell": true, "command": "journalctl -u {unit} | awk '{print $1}'", "parameters": {"unit": {"type": "string"}}}}|},
+      )
+      |> Result.map((spec: ToolSpec.t) => spec.command),
+    )
+    |> toEqual(
+         Ok(ToolSpec.Shell("journalctl -u {unit} | awk '{print $1}'")),
+       )
+  );
+
   testAll(
     "reports invalid definitions",
     [
@@ -146,6 +159,26 @@ describe("ToolSpec.decode", () => {
       (
         {|{"ls": {"description": "List", "command": ["ls"], "env": {"A": 1}}}|},
         "tools.ls.env.A must be a string",
+      ),
+      (
+        {|{"ls": {"description": "List", "shell": true, "command": ["ls"]}}|},
+        "tools.ls.command must be a string when shell is true",
+      ),
+      (
+        {|{"ls": {"description": "List", "command": "ls | wc"}}|},
+        "tools.ls.command must be an array of strings (set shell to true to run a shell command)",
+      ),
+      (
+        {|{"ls": {"description": "List", "shell": true, "command": " "}}|},
+        "tools.ls.command must not be empty",
+      ),
+      (
+        {|{"ls": {"description": "List", "shell": true, "command": "ls {di}", "parameters": {"dir": {"type": "string"}}}}|},
+        "tools.ls declares an unused parameter \"dir\"",
+      ),
+      (
+        {|{"ls": {"description": "List", "shell": "yes", "command": "ls"}}|},
+        "tools.ls.shell must be a boolean",
       ),
     ],
     ((text, expected)) =>
