@@ -61,6 +61,8 @@ Register the extension in `~/.pi/agent/settings.json`:
 }
 ```
 
+See the [installation guide](https://tyarran.github.io/pi-tool-manager/installation/) for the requirements and how to update.
+
 ## Quickstart
 
 Add a minimal configuration next to it, in `~/.pi/agent/settings.json` or in the `.pi/settings.json` of a project:
@@ -87,6 +89,7 @@ Change the selection for the current session at any time:
 ```
 
 An invalid configuration disables the extension and reports the error: pi keeps its default tools until the configuration is fixed and reloaded.
+The [Quickstart](https://tyarran.github.io/pi-tool-manager/quickstart/) goes on with replacing the shell by command-line tools.
 
 ## Documentation
 
@@ -94,10 +97,13 @@ The full documentation is at <https://tyarran.github.io/pi-tool-manager/>.
 
 | To... | Read |
 |---|---|
-| Understand what the extension does | [How it works](docs/how-it-works.md) |
-| Choose the tools of a session | [Selection and presets](docs/configuration.md) |
-| Replace the shell with safe tools | [Command-line tools](docs/command-tools.md) |
+| Install and try it | [Installation](https://tyarran.github.io/pi-tool-manager/installation/), [Quickstart](https://tyarran.github.io/pi-tool-manager/quickstart/) |
+| Understand what the extension does | [How it works](https://tyarran.github.io/pi-tool-manager/how-it-works/) |
+| Choose the tools of a session | [Selection and presets](https://tyarran.github.io/pi-tool-manager/configuration/) |
+| Replace the shell with safe tools | [Command-line tools](https://tyarran.github.io/pi-tool-manager/command-tools/) |
 | Understand or change the code | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+The sources of the site live in [`docs/`](docs/). Preview it locally with `mise run docs`, or build it with `mise run docs:build`.
 
 ## Contributing
 
