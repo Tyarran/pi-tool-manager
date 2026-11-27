@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="docs/images/logo.svg" alt="pi-tool-manager" width="480">
+  <img src="docs/images/icon.svg" alt="pi-tool-manager" width="140">
 </p>
+
+<h1 align="center">pi-tool-manager</h1>
 
 <p align="center"><strong>Restrict, organize and explain the tools your pi agent can use</strong></p>
 
