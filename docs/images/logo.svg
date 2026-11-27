@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="560" height="140" viewBox="0 0 560 140" role="img" aria-label="pi-tool-manager">
   <defs>
-    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="gear" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#8b5cf6"/>
       <stop offset="1" stop-color="#3b82f6"/>
     </linearGradient>
   </defs>
-  <path d="M70 12 L118 30 V66 C118 98 97 120 70 130 C43 120 22 98 22 66 V30 Z" fill="url(#shield)"/>
-  <text x="70" y="92" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="bold" fill="#ffffff">π</text>
-  <text x="140" y="84" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" fill="#8b5cf6">pi-tool-manager</text>
+  <path d="M70.00 23.00 L74.37 12.16 L85.13 14.01 L85.64 25.68 L97.63 31.98 L107.53 25.78 L115.15 33.59 L108.71 43.34 L114.70 55.48 L126.35 56.28 L127.93 67.09 L116.99 71.18 L114.70 84.52 L123.65 92.03 L118.58 101.69 L107.32 98.57 L97.63 108.02 L100.46 119.36 L90.67 124.19 L83.40 115.05 L70.00 117.00 L65.63 127.84 L54.87 125.99 L54.36 114.32 L42.37 108.02 L32.47 114.22 L24.85 106.41 L31.29 96.66 L25.30 84.52 L13.65 83.72 L12.07 72.91 L23.01 68.82 L25.30 55.48 L16.35 47.97 L21.42 38.31 L32.68 41.43 L42.37 31.98 L39.54 20.64 L49.33 15.81 L56.60 24.95 Z" fill="url(#gear)"/>
+  <circle cx="70" cy="70" r="35" fill="#ffffff" fill-opacity="0.18"/>
+  <text x="70" y="91" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="bold" fill="#ffffff">π</text>
+  <text x="146" y="86" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" fill="#8b5cf6">pi-tool-manager</text>
 </svg>
