@@ -1,0 +1,7 @@
+(library
+ (name pi_tool_manager)
+ (wrapped false)
+ (modes melange)
+ (libraries pi_tool_manager_core)
+ (preprocess
+  (pps melange.ppx)))

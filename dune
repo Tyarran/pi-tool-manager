@@ -1,0 +1,6 @@
+(dirs src test)
+
+(melange.emit
+ (target dist)
+ (libraries pi_tool_manager)
+ (module_systems esm))

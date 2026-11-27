@@ -1,0 +1,47 @@
+{
+  "name": "pi-tool-manager",
+  "version": "0.1.0",
+  "description": "pi extension to manage and restrict the tools available to the LLM",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tyarran/pi-tool-manager.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension"
+  ],
+  "main": "index.js",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "pi": {
+    "extensions": [
+      "./index.js"
+    ]
+  },
+  "scripts": {
+    "build": "dune build",
+    "fmt": "dune build @fmt --auto-promote",
+    "test": "dune build && jest"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0"
+  },
+  "jest": {
+    "rootDir": "_build/default/test/jest",
+    "testMatch": [
+      "**/*_test.cjs"
+    ],
+    "moduleFileExtensions": [
+      "cjs",
+      "js"
+    ],
+    "testEnvironment": "node"
+  }
+}
