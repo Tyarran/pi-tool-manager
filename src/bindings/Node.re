@@ -1,5 +1,8 @@
 type childProcess;
+
 type stream;
+
+type abortSignal;
 
 type spawnOptions = {
   cwd: string,
@@ -12,9 +15,14 @@ type spawnOptions = {
 external spawn: (string, array(string), spawnOptions) => childProcess =
   "spawn";
 
-[@mel.get] external pid: childProcess => option(int) = "pid";
+[@mel.get] [@mel.return undefined_to_opt]
+external pid: childProcess => option(int) = "pid";
+
 [@mel.get] external stdout: childProcess => stream = "stdout";
+
 [@mel.get] external stderr: childProcess => stream = "stderr";
+
+[@mel.send] external setEncoding: (stream, string) => unit = "setEncoding";
 
 [@mel.send]
 external onData: (stream, [@mel.as "data"] _, string => unit) => unit = "on";
@@ -33,20 +41,20 @@ external onClose:
 external onError: (childProcess, [@mel.as "error"] _, Js.Exn.t => unit) => unit =
   "on";
 
-[@mel.send] external setEncoding: (stream, string) => unit = "setEncoding";
+[@mel.scope "process"] external kill: (int, string) => unit = "kill";
 
-[@mel.scope "process"] external killProcess: (int, string) => unit = "kill";
+[@mel.scope "process"] external env: Js.Dict.t(string) = "env";
 
-[@mel.scope "process"] external processEnv: Js.Dict.t(string) = "env";
+let environment = () => Js.Dict.fromArray(Js.Dict.entries(env));
 
-[@mel.get] external aborted: Pi.signal => bool = "aborted";
+[@mel.get] external aborted: abortSignal => bool = "aborted";
 
 [@mel.send]
-external onAbort: (Pi.signal, [@mel.as "abort"] _, unit => unit) => unit =
+external onAbort: (abortSignal, [@mel.as "abort"] _, unit => unit) => unit =
   "addEventListener";
 
 [@mel.module "node:fs"]
-external writeFileSync: (string, string) => unit = "writeFileSync";
+external writeFile: (string, string) => unit = "writeFileSync";
 
 [@mel.module "node:path"]
 external resolvePath: (string, string) => string = "resolve";

@@ -7,8 +7,11 @@ type t =
 
 let isError = outcome =>
   switch (outcome) {
-  | Exited(0) => false
-  | _ => true
+  | Exited(code) => code != 0
+  | Signaled(_)
+  | TimedOut(_)
+  | Aborted
+  | Failed(_) => true
   };
 
 let status = outcome =>
@@ -27,9 +30,10 @@ let rec trimEnd = text => {
     ? trimEnd(String.sub(text, 0, length - 1)) : text;
 };
 
+let section = ((name, text)) =>
+  String.trim(text) == "" ? None : Some(name ++ ":\n" ++ trimEnd(text));
+
 let format = (~stdout, ~stderr, outcome) =>
-  [("stdout", stdout), ("stderr", stderr)]
-  |> List.filter(((_, text)) => String.trim(text) != "")
-  |> List.map(((name, text)) => name ++ ":\n" ++ trimEnd(text))
-  |> (sections => sections @ [status(outcome)])
+  List.filter_map(section, [("stdout", stdout), ("stderr", stderr)])
+  @ [status(outcome)]
   |> String.concat("\n\n");

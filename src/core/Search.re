@@ -1,32 +1,57 @@
 type document = {
   name: string,
   text: string,
-  namespaceText: string,
+  namespace: string,
 };
 
-let stopWords = [
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "for",
-  "from",
-  "in",
-  "is",
-  "it",
-  "of",
-  "on",
-  "or",
-  "that",
-  "the",
-  "this",
-  "to",
-  "with",
-];
+type indexed = {
+  name: string,
+  nameTerms: Names.Set.t,
+  localNameTerms: Names.Set.t,
+  termCounts: Names.Map.t(int),
+  length: int,
+  namespaceTerms: Names.Set.t,
+};
+
+type scored = {
+  name: string,
+  score: float,
+  covered: int,
+  exact: bool,
+};
+
+let nameWeight = 3.0;
+
+let namespaceWeight = 0.5;
+
+let k1 = 1.2;
+
+let b = 0.75;
+
+let stopWords =
+  Names.Set.of_list([
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "with",
+  ]);
 
 let endsWith = (~suffix, text) => {
   let length = String.length(text);
@@ -38,7 +63,7 @@ let endsWith = (~suffix, text) => {
 let dropEnd = (count, text) =>
   String.sub(text, 0, String.length(text) - count);
 
-let stem = term => {
+let singular = term => {
   let length = String.length(term);
   if (length > 4 && endsWith(~suffix="ies", term)) {
     dropEnd(3, term) ++ "y";
@@ -74,197 +99,187 @@ let tokenize = text =>
   |> Js.String.toLowerCase
   |> replace("[^\\p{L}\\p{M}\\p{N}]+", " ")
   |> String.split_on_char(' ')
-  |> List.filter(word => word != "" && !List.mem(word, stopWords))
-  |> List.map(word => isAsciiWord(word) ? stem(word) : word);
+  |> List.filter(word => word != "" && !Names.Set.mem(word, stopWords))
+  |> List.map(word => isAsciiWord(word) ? singular(word) : word);
+
+let terms = text => Names.Set.of_list(tokenize(text));
+
+let stringField = (fields, key) =>
+  Option.bind(Js.Dict.get(fields, key), Js.Json.decodeString);
 
 let rec schemaText = json =>
-  switch (Js.Json.classify(json)) {
-  | JSONObject(schema) =>
-    let field = key => Js.Dict.get(schema, key);
-    let description =
-      switch (Option.map(Js.Json.classify, field("description"))) {
-      | Some(JSONString(text)) => [text]
-      | _ => []
-      };
+  switch (Js.Json.decodeObject(json)) {
+  | None => []
+  | Some(schema) =>
+    let nested = key =>
+      Option.fold(~none=[], ~some=schemaText, Js.Dict.get(schema, key));
     let properties =
-      switch (Option.map(Js.Json.classify, field("properties"))) {
-      | Some(JSONObject(properties)) =>
+      switch (
+        Option.bind(Js.Dict.get(schema, "properties"), Js.Json.decodeObject)
+      ) {
+      | Some(properties) =>
         properties
         |> Js.Dict.entries
         |> Array.to_list
         |> List.concat_map(((name, property)) =>
              [name, ...schemaText(property)]
            )
-      | _ => []
+      | None => []
       };
-    let items = Option.fold(~none=[], ~some=schemaText, field("items"));
     let variants =
       ["anyOf", "oneOf", "allOf"]
       |> List.concat_map(key =>
-           switch (Option.map(Js.Json.classify, field(key))) {
-           | Some(JSONArray(variants)) =>
+           switch (
+             Option.bind(Js.Dict.get(schema, key), Js.Json.decodeArray)
+           ) {
+           | Some(variants) =>
              List.concat_map(schemaText, Array.to_list(variants))
-           | _ => []
+           | None => []
            }
          );
-    description @ properties @ items @ variants;
-  | _ => []
+    List.concat([
+      Option.to_list(stringField(schema, "description")),
+      properties,
+      nested("items"),
+      variants,
+    ]);
   };
 
-let document = (~name, ~description, ~parameters, ~namespaceText) => {
+let document = (~name, ~description, ~parameters, ~namespace) => {
   name,
   text:
     [description, ...schemaText(parameters)]
     |> List.filter(part => String.trim(part) != "")
     |> String.concat(" "),
-  namespaceText,
+  namespace: String.concat(" ", namespace),
 };
 
-let normalizeName = name =>
-  name |> String.trim |> Js.String.toLowerCase |> replace("[^a-z0-9_$]", "_");
-
-let isExactNameQuery = (query, name) => {
-  let normalized = normalizeName(name);
-  normalized == query || endsWith(~suffix="__" ++ query, normalized);
-};
-
-let nameWeight = 3.0;
-let namespaceWeight = 0.5;
-let k1 = 1.2;
-let b = 0.75;
-
-type indexed = {
-  name: string,
-  nameTerms: list(string),
-  localNameTerms: list(string),
-  textCounts: list((string, int)),
-  textLength: int,
-  namespaceTerms: list(string),
-};
-
-let uniq = terms => List.sort_uniq(compare, terms);
-
-let count = terms =>
+let countTerms = words =>
   List.fold_left(
-    (counts, term) =>
-      switch (List.assoc_opt(term, counts)) {
-      | Some(n) => [(term, n + 1), ...List.remove_assoc(term, counts)]
-      | None => [(term, 1), ...counts]
-      },
-    [],
-    terms,
+    (counts, word) =>
+      Names.Map.update(
+        word,
+        count => Some(Option.value(count, ~default=0) + 1),
+        counts,
+      ),
+    Names.Map.empty,
+    words,
   );
 
 let lastSegment = name =>
-  switch (List.rev(Js.String.split(~sep="__", name) |> Array.to_list)) {
+  switch (List.rev(Array.to_list(Js.String.split(~sep="__", name)))) {
   | [last, ..._] => last
   | [] => name
   };
 
 let index = (document: document) => {
-  let textTerms = tokenize(document.text);
+  let words = tokenize(document.text);
   {
     name: document.name,
-    nameTerms: uniq(tokenize(document.name)),
-    localNameTerms: uniq(tokenize(lastSegment(document.name))),
-    textCounts: count(textTerms),
-    textLength: List.length(textTerms),
-    namespaceTerms: uniq(tokenize(document.namespaceText)),
+    nameTerms: terms(document.name),
+    localNameTerms: terms(lastSegment(document.name)),
+    termCounts: countTerms(words),
+    length: List.length(words),
+    namespaceTerms: terms(document.namespace),
   };
 };
 
+let normalizeName = name =>
+  name |> String.trim |> Js.String.toLowerCase |> replace("[^a-z0-9_$]", "_");
+
+let isExactName = (~query, name) => {
+  let normalized = normalizeName(name);
+  normalized == query || endsWith(~suffix="__" ++ query, normalized);
+};
+
+let contains = (term, indexed) =>
+  Names.Set.mem(term, indexed.nameTerms)
+  || Names.Map.mem(term, indexed.termCounts)
+  || Names.Set.mem(term, indexed.namespaceTerms);
+
+let inverseFrequency = (documents, term) => {
+  let total = float_of_int(List.length(documents));
+  let frequency =
+    float_of_int(List.length(List.filter(contains(term), documents)));
+  log(1.0 +. (total -. frequency +. 0.5) /. (frequency +. 0.5));
+};
+
+let averageLength = documents => {
+  let total = List.fold_left((sum, doc) => sum + doc.length, 0, documents);
+  total == 0
+    ? 1.0 : float_of_int(total) /. float_of_int(List.length(documents));
+};
+
+let termWeight = (indexed, ~norm, term) => {
+  let count =
+    float_of_int(
+      Option.value(Names.Map.find_opt(term, indexed.termCounts), ~default=0),
+    );
+  (Names.Set.mem(term, indexed.nameTerms) ? nameWeight : 0.0)
+  +. (Names.Set.mem(term, indexed.namespaceTerms) ? namespaceWeight : 0.0)
+  +. count
+  *. (k1 +. 1.0)
+  /. (count +. norm);
+};
+
+let score = (~queryTerms, ~weights, ~average, ~exactQuery, indexed) => {
+  let norm = k1 *. (1.0 -. b +. b *. float_of_int(indexed.length) /. average);
+  let (score, covered) =
+    Names.Map.fold(
+      (term, idf, (score, covered)) => {
+        let weight = termWeight(indexed, ~norm, term);
+        (score +. idf *. weight, weight > 0.0 ? covered + 1 : covered);
+      },
+      weights,
+      (0.0, 0),
+    );
+  let fullNameBonus =
+    !Names.Set.is_empty(indexed.localNameTerms)
+    && Names.Set.subset(indexed.localNameTerms, queryTerms)
+      ? Names.Map.fold((_, idf, sum) => sum +. idf, weights, 0.0) : 0.0;
+  score == 0.0
+    ? None
+    : Some({
+        name: indexed.name,
+        score: score +. fullNameBonus,
+        covered,
+        exact: isExactName(~query=exactQuery, indexed.name),
+      });
+};
+
+let compareScored = (a, b) =>
+  if (a.exact != b.exact) {
+    compare(b.exact, a.exact);
+  } else if (a.covered != b.covered) {
+    compare(b.covered, a.covered);
+  } else {
+    compare(b.score, a.score);
+  };
+
 let rank = (query, documents, ~limit) => {
-  let queryTerms = uniq(tokenize(query));
-  if (queryTerms == [] || documents == [] || limit <= 0) {
+  let queryTerms = terms(query);
+  if (Names.Set.is_empty(queryTerms) || documents == [] || limit <= 0) {
     [];
   } else {
     let indexed = List.map(index, documents);
-    let total = float_of_int(List.length(indexed));
-    let averageLength = {
-      let sum =
-        List.fold_left((sum, doc) => sum + doc.textLength, 0, indexed);
-      sum == 0 ? 1.0 : float_of_int(sum) /. total;
-    };
-    let idf =
-      List.map(
-        term => {
-          let frequency =
-            indexed
-            |> List.filter(doc =>
-                 List.mem(term, doc.nameTerms)
-                 || List.mem_assoc(term, doc.textCounts)
-                 || List.mem(term, doc.namespaceTerms)
-               )
-            |> List.length
-            |> float_of_int;
-          (
-            term,
-            log(1.0 +. (total -. frequency +. 0.5) /. (frequency +. 0.5)),
-          );
-        },
+    let weights =
+      Names.Set.fold(
+        (term, weights) =>
+          Names.Map.add(term, inverseFrequency(indexed, term), weights),
         queryTerms,
+        Names.Map.empty,
       );
-    let fullNameBonus = List.fold_left((sum, (_, v)) => sum +. v, 0.0, idf);
-    let exactQuery = normalizeName(query);
     indexed
-    |> List.filter_map(doc => {
-         let norm =
-           k1
-           *. (1.0 -. b +. b *. float_of_int(doc.textLength) /. averageLength);
-         let (score, covered) =
-           List.fold_left(
-             ((score, covered), (term, termIdf)) => {
-               let n =
-                 float_of_int(
-                   Option.value(
-                     List.assoc_opt(term, doc.textCounts),
-                     ~default=0,
-                   ),
-                 );
-               let weight =
-                 (List.mem(term, doc.nameTerms) ? nameWeight : 0.0)
-                 +. (
-                   List.mem(term, doc.namespaceTerms) ? namespaceWeight : 0.0
-                 )
-                 +. n
-                 *. (k1 +. 1.0)
-                 /. (n +. norm);
-               (
-                 score +. termIdf *. weight,
-                 weight > 0.0 ? covered + 1 : covered,
-               );
-             },
-             (0.0, 0),
-             idf,
-           );
-         if (score == 0.0) {
-           None;
-         } else {
-           let bonus =
-             doc.localNameTerms != []
-             && List.for_all(
-                  term => List.mem(term, queryTerms),
-                  doc.localNameTerms,
-                )
-               ? fullNameBonus : 0.0;
-           Some((
-             doc.name,
-             score +. bonus,
-             covered,
-             isExactNameQuery(exactQuery, doc.name),
-           ));
-         };
-       })
-    |> List.stable_sort(((_, s1, c1, e1), (_, s2, c2, e2)) =>
-         if (e1 != e2) {
-           e2 ? 1 : (-1);
-         } else if (c1 != c2) {
-           compare(c2, c1);
-         } else {
-           compare(s2, s1);
-         }
+    |> List.filter_map(
+         score(
+           ~queryTerms,
+           ~weights,
+           ~average=averageLength(indexed),
+           ~exactQuery=normalizeName(query),
+         ),
        )
-    |> List.filteri((i, _) => i < limit)
-    |> List.map(((name, score, _, _)) => (name, score));
+    |> List.stable_sort(compareScored)
+    |> List.filteri((position, _) => position < limit)
+    |> List.map(scored => scored.name);
   };
 };

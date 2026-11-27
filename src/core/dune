@@ -1,3 +1,5 @@
+(include_subdirs qualified)
+
 (library
  (name pi_tool_manager_core)
  (wrapped false)

@@ -1,95 +1,80 @@
 type t = {
   preset: option(string),
-  adjustments: list(string),
+  adjustments: list(Selection.modifier),
 };
+
+let ( let* ) = Result.bind;
 
 let start = (config: Config.t) => {
   preset: config.defaultPreset,
   adjustments: [],
 };
 
-let presetEntries = (config: Config.t, preset) =>
-  switch (preset) {
-  | None => []
-  | Some(name) =>
-    Option.value(List.assoc_opt(name, config.presets), ~default=[])
-  };
+let presetOf = (config: Config.t, name) =>
+  Names.Map.find_opt(name, config.presets);
 
-let tools = (config: Config.t, session) =>
-  Selection.applyModifiers(
-    Selection.resolve(
-      ~base=config.baseTools,
-      presetEntries(config, session.preset),
-    ),
-    session.adjustments,
-  );
+let selection = (config: Config.t, session) => {
+  let base =
+    switch (Option.bind(session.preset, presetOf(config))) {
+    | Some(preset) => Selection.resolve(~base=config.baseTools, preset)
+    | None => config.baseTools
+    };
+  Selection.apply(base, session.adjustments);
+};
 
 let active = (config, session) =>
-  Selection.applyModifiers(
-    tools(config, session),
-    List.map(name => "+" ++ name, Proxy.names),
-  );
+  Names.Set.union(selection(config, session), Proxy.tools);
 
 let allows = (config, session, name) =>
-  List.mem(name, active(config, session));
+  Names.Set.mem(name, active(config, session));
 
 let needsSync = (config, session, ~known, ~active as current) =>
   !
-    Selection.sameTools(
-      List.filter(name => List.mem(name, known), active(config, session)),
+    Names.Set.equal(
+      Names.Set.inter(active(config, session), known),
       current,
     );
 
-let unknownToolsError = names =>
-  Error(Printf.sprintf("Unknown tools: %s", String.concat(", ", names)));
+let checkKnown = (~known, names) => {
+  let unknown = Names.Set.diff(names, known);
+  Names.Set.is_empty(unknown)
+    ? Ok() : Error("Unknown tools: " ++ Names.join(unknown));
+};
 
-let presetNames = (config: Config.t) =>
-  String.concat(", ", List.map(fst, config.presets));
-
-let switchPreset = (config: Config.t, ~known, text) =>
-  switch (Selection.tokenize(text)) {
-  | [] =>
+let switchPreset = (config: Config.t, ~known, name) =>
+  switch (presetOf(config, name)) {
+  | None =>
     Error(
       Printf.sprintf(
-        "Usage: /tool-preset <name> (available: %s)",
-        presetNames(config),
+        "Unknown preset \"%s\" (available: %s)",
+        name,
+        String.concat(", ", Config.presetNames(config)),
       ),
     )
-  | [name] =>
-    switch (List.assoc_opt(name, config.presets)) {
-    | None =>
-      Error(
-        Printf.sprintf(
-          "Unknown preset \"%s\" (available: %s)",
-          name,
-          presetNames(config),
+  | Some(preset) =>
+    let session = {
+      preset: Some(name),
+      adjustments: [],
+    };
+    let* () =
+      checkKnown(
+        ~known,
+        Names.Set.union(
+          Selection.referencedNames(preset),
+          selection(config, session),
         ),
-      )
-    | Some(entries) =>
-      let session = {
-        preset: Some(name),
-        adjustments: [],
-      };
-      switch (
-        Selection.unknownTools(~known, entries @ tools(config, session))
-      ) {
-      | [] => Ok(session)
-      | names => unknownToolsError(names)
-      };
-    }
-  | _ => Error("Usage: /tool-preset <name>")
+      );
+    Ok(session);
   };
 
-let adjust = (~known, session, text) =>
-  switch (Selection.parseAdjustments(text)) {
-  | Error(_) as error => error
-  | Ok(entries) =>
-    switch (Selection.unknownTools(~known, entries)) {
-    | [] =>
-      Ok({
-        ...session,
-        adjustments: session.adjustments @ entries,
-      })
-    | names => unknownToolsError(names)
-    }
-  };
+let adjust = (~known, session, modifiers) => {
+  let* () =
+    checkKnown(
+      ~known,
+      Names.Set.of_list(List.map(Selection.modifierName, modifiers)),
+    );
+  Ok({
+    ...session,
+    adjustments: session.adjustments @ modifiers,
+  });
+};

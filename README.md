@@ -147,6 +147,8 @@ npm test          # build and run the Jest tests
 npm run fmt       # format the Reason sources
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the architecture and the code guidelines.
+
 ## License
 
 MIT

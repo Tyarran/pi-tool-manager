@@ -28,14 +28,13 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
     "jest": "^30.0.0"
   },
   "jest": {
-    "rootDir": "_build/default/test/jest",
+    "rootDir": "_build/default/test",
     "testMatch": [
       "**/*_test.cjs"
     ],
@@ -43,6 +42,9 @@
       "cjs",
       "js"
     ],
+    "moduleNameMapper": {
+      "^@earendil-works/pi-tui$": "<rootDir>/../../../test/stubs/pi-tui.cjs"
+    },
     "testEnvironment": "node"
   }
 }

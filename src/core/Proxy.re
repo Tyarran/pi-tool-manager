@@ -1,72 +1,67 @@
-let callTool = "tool_call";
+let toolCall = "tool_call";
 
-let findTool = "tool_find";
+let toolFind = "tool_find";
 
-let names = [callTool, findTool];
+let tools = Names.Set.of_list([toolCall, toolFind]);
 
-let firstLine = text =>
-  switch (String.split_on_char('\n', String.trim(text))) {
-  | [line, ..._] => String.trim(line)
-  | [] => ""
-  };
+let defaultFindLimit = 8;
 
-let hiddenDeclarations = declared =>
-  List.filter(name => !List.mem(name, names), declared);
-
-let describe = (~guidelines=[], tools) => {
-  let catalog =
-    switch (tools) {
-    | [] => "No tool is available in the current selection."
-    | tools =>
-      tools
-      |> List.map(((name, description)) =>
-           switch (firstLine(description)) {
-           | "" => "- " ++ name
-           | line => Printf.sprintf("- %s: %s", name, line)
-           }
-         )
-      |> String.concat("\n")
-    };
-  "Call one of the available tools. Every tool is reached through tool_call: pass its name in `tool`, its parameters in `arguments`, and explain in `intent` why you call it. Use tool_find to get the parameters of a tool. Invalid arguments return the expected parameter schema.\n\nAvailable tools:\n"
-  ++ catalog
-  ++ (
-    switch (guidelines) {
-    | [] => ""
-    | guidelines =>
-      "\n\nGuidelines:\n"
-      ++ String.concat("\n", List.map(line => "- " ++ line, guidelines))
+let callParameters =
+  Js.Json.parseExn(
+    {|{
+  "type": "object",
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Name of the tool to call, from the list of available tools"
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why you call this tool, in one short sentence"
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Parameters of the called tool"
     }
-  );
-};
-
-let unavailable = (~available, tool) =>
-  Printf.sprintf(
-    "Tool \"%s\" is not available. Available tools: %s",
-    tool,
-    String.concat(", ", available),
+  },
+  "required": ["tool", "intent"],
+  "additionalProperties": false
+}|},
   );
 
-let validate = (~available, ~tool, ~intent) =>
+let findParameters =
+  Js.Json.parseExn(
+    {|{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Keywords describing the tool you need"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum number of tools to return. Defaults to 8."
+    }
+  },
+  "required": ["query"],
+  "additionalProperties": false
+}|},
+  );
+
+let checkCall = (~selection, ~tool, ~intent) =>
   if (String.trim(intent) == "") {
     Error("intent must explain why the tool is called");
-  } else if (!List.mem(tool, available)) {
-    Error(unavailable(~available, tool));
+  } else if (!Names.Set.mem(tool, selection)) {
+    Error(
+      Printf.sprintf(
+        "Tool \"%s\" is not available. Available tools: %s",
+        tool,
+        Names.join(selection),
+      ),
+    );
   } else {
     Ok();
-  };
-
-let describeFound = found =>
-  switch (found) {
-  | [] => "No matching tools found."
-  | found =>
-    found
-    |> List.map(((name, description, schema)) =>
-         Printf.sprintf(
-           "## %s\n\n%s\n\nParameters:\n```json\n%s\n```",
-           name,
-           String.trim(description),
-           schema,
-         )
-       )
-    |> String.concat("\n\n")
   };

@@ -1,11 +1,14 @@
-let all = results =>
-  List.fold_right(
-    (result, acc) =>
-      switch (result, acc) {
-      | (Ok(value), Ok(values)) => Ok([value, ...values])
-      | (Error(message), _)
-      | (_, Error(message)) => Error(message)
-      },
-    results,
-    Ok([]),
-  );
+let map = (f, items) => {
+  let rec loop = (mapped, items) =>
+    switch (items) {
+    | [] => Ok(List.rev(mapped))
+    | [item, ...rest] =>
+      switch (f(item)) {
+      | Ok(value) => loop([value, ...mapped], rest)
+      | Error(error) => Error(error)
+      }
+    };
+  loop([], items);
+};
+
+let iter = (f, items) => map(f, items) |> Result.map(_ => ());

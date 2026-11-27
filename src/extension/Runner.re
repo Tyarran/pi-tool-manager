@@ -1,140 +1,139 @@
-let killGraceMs = 5000;
-
-type limits = {
-  maxLines: int,
-  maxBytes: int,
+type command = {
+  argv: list(string),
+  env: list((string, string)),
+  cwd: string,
+  timeout: int,
+  output: CommandTool.Spec.output,
 };
 
-let truncate = (~limits, ~name, output) => {
-  let truncation =
-    Pi.truncateTail(
-      output,
-      {
-        maxLines: limits.maxLines,
-        maxBytes: limits.maxBytes,
-      },
+let killGraceMs = 5000;
+
+let display = (limits: CommandTool.Spec.output, ~stream, text) => {
+  let output =
+    CommandTool.Output.tail(
+      ~maxLines=limits.maxLines,
+      ~maxBytes=limits.maxBytes,
+      text,
     );
-  if (truncation.truncated) {
+  if (output.truncated) {
     let file =
       Node.joinPath(
         Node.tmpdir(),
-        Printf.sprintf("pi-tool-manager-%s-%s.log", name, Node.randomUUID()),
+        Printf.sprintf(
+          "pi-tool-manager-%s-%s.log",
+          stream,
+          Node.randomUUID(),
+        ),
       );
-    Node.writeFileSync(file, output);
-    Printf.sprintf(
-      "[Output truncated: last %d of %d lines. Full output saved to: %s]\n%s",
-      truncation.outputLines,
-      truncation.totalLines,
-      file,
-      truncation.content,
-    );
+    Node.writeFile(file, text);
+    CommandTool.Output.withNotice(output, ~file);
   } else {
-    truncation.content;
+    output.text;
   };
 };
 
-let mergeEnv = env => {
-  let merged = Js.Dict.fromArray(Js.Dict.entries(Node.processEnv));
+let resultOf = (command, ~stdout, ~stderr, outcome) => {
+  PiTool.content: [|
+    PiTool.text(
+      CommandTool.Outcome.format(
+        ~stdout=display(command.output, ~stream="stdout", stdout),
+        ~stderr=display(command.output, ~stream="stderr", stderr),
+        outcome,
+      ),
+    ),
+  |],
+  isError: CommandTool.Outcome.isError(outcome),
+};
+
+let environment = env => {
+  let merged = Node.environment();
   List.iter(((name, value)) => Js.Dict.set(merged, name, value), env);
   merged;
 };
 
-let run = (~cwd, ~argv, ~env, ~timeout, ~limits, ~signal) =>
-  Js.Promise.make((~resolve, ~reject as _) => {
-    let stdout = ref([]);
-    let stderr = ref([]);
-    let finished = ref(false);
-    let reason = ref(None);
-    let timers = ref([]);
-    let collect = (chunks, chunk) => chunks := [chunk, ...chunks^];
-    let joined = chunks => String.concat("", List.rev(chunks^));
-    let finish = outcome =>
-      if (! finished^) {
-        finished := true;
-        List.iter(Js.Global.clearTimeout, timers^);
-        let text =
-          Outcome.format(
-            ~stdout=truncate(~limits, ~name="stdout", joined(stdout)),
-            ~stderr=truncate(~limits, ~name="stderr", joined(stderr)),
-            outcome,
-          );
-        resolve(.
-          ToolResult.make(
-            ~content=[|ToolResult.text(text)|],
-            ~isError=Outcome.isError(outcome),
-            (),
-          ),
-        );
-      };
-    switch (argv) {
-    | [] => finish(Failed("empty command"))
-    | [program, ...args] =>
-      let child =
-        Node.spawn(
-          program,
-          Array.of_list(args),
-          {
-            cwd,
-            detached: true,
-            stdio: [|"ignore", "pipe", "pipe"|],
-            env: mergeEnv(env),
-          },
-        );
-      let kill = signalName =>
-        switch (Node.pid(child)) {
-        | Some(pid) =>
-          try(Node.killProcess(- pid, signalName)) {
-          | _ => ()
-          }
-        | None => ()
-        };
-      let stop = why =>
-        if (! finished^ && Option.is_none(reason^)) {
-          reason := Some(why);
-          kill("SIGTERM");
-          timers :=
-            [
-              Js.Global.setTimeout(~f=() => kill("SIGKILL"), killGraceMs),
-              ...timers^,
-            ];
-        };
-      Node.setEncoding(Node.stdout(child), "utf8");
-      Node.setEncoding(Node.stderr(child), "utf8");
-      Node.onData(Node.stdout(child), collect(stdout));
-      Node.onData(Node.stderr(child), collect(stderr));
-      Node.onError(child, error =>
-        finish(
-          Failed(
-            Option.value(Js.Exn.message(error), ~default="unknown error"),
-          ),
-        )
+let collect = stream => {
+  let chunks = ref([]);
+  Node.setEncoding(stream, "utf8");
+  Node.onData(stream, chunk => chunks := [chunk, ...chunks^]);
+  () => String.concat("", List.rev(chunks^));
+};
+
+let killGroup = (child, signalName) =>
+  switch (Node.pid(child)) {
+  | Some(pid) =>
+    try(Node.kill(- pid, signalName)) {
+    | _ => ()
+    }
+  | None => ()
+  };
+
+let exitOutcome = (~stopReason, code, signalName): CommandTool.Outcome.t =>
+  switch (stopReason, Js.Null.toOption(code), Js.Null.toOption(signalName)) {
+  | (Some(reason), _, _) => reason
+  | (None, Some(code), _) => Exited(code)
+  | (None, None, Some(signalName)) => Signaled(signalName)
+  | (None, None, None) => Exited(-1)
+  };
+
+let supervise = (command, ~program, ~args, ~signal, ~resolve) => {
+  let child =
+    Node.spawn(
+      program,
+      Array.of_list(args),
+      {
+        cwd: command.cwd,
+        detached: true,
+        stdio: [|"ignore", "pipe", "pipe"|],
+        env: environment(command.env),
+      },
+    );
+  let stdout = collect(Node.stdout(child));
+  let stderr = collect(Node.stderr(child));
+  let finished = ref(false);
+  let stopReason = ref(None);
+  let timers = ref([]);
+  let schedule = (delay, action) =>
+    timers := [Js.Global.setTimeout(~f=action, delay), ...timers^];
+  let finish = outcome =>
+    if (! finished^) {
+      finished := true;
+      List.iter(Js.Global.clearTimeout, timers^);
+      resolve(
+        resultOf(command, ~stdout=stdout(), ~stderr=stderr(), outcome),
       );
-      Node.onClose(child, (code, signalName) =>
-        finish(
-          switch (
-            reason^,
-            Js.Null.toOption(code),
-            Js.Null.toOption(signalName),
-          ) {
-          | (Some(outcome), _, _) => outcome
-          | (None, Some(code), _) => Exited(code)
-          | (None, None, Some(signalName)) => Signaled(signalName)
-          | (None, None, None) => Exited(-1)
-          },
-        )
-      );
-      timers :=
-        [
-          Js.Global.setTimeout(
-            ~f=() => stop(Outcome.TimedOut(timeout)),
-            timeout * 1000,
-          ),
-          ...timers^,
-        ];
-      switch (Js.Nullable.toOption(signal)) {
-      | Some(signal) when Node.aborted(signal) => stop(Outcome.Aborted)
-      | Some(signal) => Node.onAbort(signal, () => stop(Outcome.Aborted))
-      | None => ()
-      };
     };
-  });
+  let stop = reason =>
+    if (! finished^ && Option.is_none(stopReason^)) {
+      stopReason := Some(reason);
+      killGroup(child, "SIGTERM");
+      schedule(killGraceMs, () => killGroup(child, "SIGKILL"));
+    };
+  Node.onError(child, error =>
+    finish(
+      Failed(Option.value(Js.Exn.message(error), ~default="unknown error")),
+    )
+  );
+  Node.onClose(child, (code, signalName) =>
+    finish(exitOutcome(~stopReason=stopReason^, code, signalName))
+  );
+  schedule(command.timeout * 1000, () => stop(TimedOut(command.timeout)));
+  switch (Js.Nullable.toOption(signal)) {
+  | Some(signal) when Node.aborted(signal) => stop(Aborted)
+  | Some(signal) => Node.onAbort(signal, () => stop(Aborted))
+  | None => ()
+  };
+};
+
+let run = (command, ~signal) =>
+  switch (command.argv) {
+  | [] =>
+    Js.Promise.resolve(
+      resultOf(command, ~stdout="", ~stderr="", Failed("empty command")),
+    )
+  | [program, ...args] =>
+    Js.Promise.make((~resolve, ~reject as _) =>
+      supervise(command, ~program, ~args, ~signal, ~resolve=result =>
+        resolve(. result)
+      )
+    )
+  };
