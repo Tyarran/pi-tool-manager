@@ -11,6 +11,9 @@
   <a href="https://pi.dev">
     <img src="https://img.shields.io/badge/pi-extension-8b5cf6" alt="pi extension">
   </a>
+  <a href="https://tyarran.github.io/pi-tool-manager/">
+    <img src="https://img.shields.io/badge/docs-tyarran.github.io-blue" alt="Documentation">
+  </a>
   <img src="https://img.shields.io/badge/made%20with-Reason%20%2B%20Melange-dd4b39" alt="Reason + Melange">
   <img src="https://img.shields.io/github/license/Tyarran/pi-tool-manager" alt="License">
 </p>
@@ -86,6 +89,8 @@ Change the selection for the current session at any time:
 An invalid configuration disables the extension and reports the error: pi keeps its default tools until the configuration is fixed and reloaded.
 
 ## Documentation
+
+The full documentation is at <https://tyarran.github.io/pi-tool-manager/>.
 
 | To... | Read |
 |---|---|

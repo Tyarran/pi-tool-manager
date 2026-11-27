@@ -1,0 +1,95 @@
+[project]
+
+site_name = "pi-tool-manager"
+site_description = "Restrict, organize and explain the tools your pi agent can use"
+site_url = "https://tyarran.github.io/pi-tool-manager/"
+site_author = "Romain Commandé"
+
+repo_url = "https://github.com/Tyarran/pi-tool-manager"
+repo_name = "Tyarran/pi-tool-manager"
+edit_uri = "edit/main/docs/"
+
+copyright = """
+Copyright &copy; 2026 Romain Commandé — MIT licensed
+"""
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting started" = [
+    { "Installation" = "installation.md" },
+    { "Quickstart" = "quickstart.md" },
+  ] },
+  { "Guides" = [
+    { "How it works" = "how-it-works.md" },
+    { "Selection and presets" = "configuration.md" },
+    { "Command-line tools" = "command-tools.md" },
+  ] },
+]
+
+[project.theme]
+
+language = "en"
+logo = "images/icon.svg"
+favicon = "images/icon.svg"
+
+features = [
+  "content.action.edit",
+  "content.code.annotate",
+  "content.code.copy",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
+  "search.suggest",
+  "search.highlight",
+  "toc.follow",
+  "toc.integrate",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+primary = "deep-purple"
+accent = "indigo"
+toggle.icon = "lucide/monitor"
+toggle.name = "Following your system — switch to light"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "deep-purple"
+accent = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "deep-purple"
+accent = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to following your system"
+
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
