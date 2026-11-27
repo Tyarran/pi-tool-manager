@@ -27,6 +27,9 @@ let unknownTools = (~known, entries) =>
   |> List.filter(name => !List.mem(name, known))
   |> List.sort_uniq(compare);
 
+let sameTools = (a, b) =>
+  List.sort_uniq(compare, a) == List.sort_uniq(compare, b);
+
 let tokenize = text =>
   String.split_on_char(' ', text)
   |> List.concat_map(String.split_on_char('\t'))

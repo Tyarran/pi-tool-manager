@@ -20,6 +20,40 @@ let knownTools = pi =>
 let apply = (pi, config, session) =>
   Pi.setActiveTools(pi, Array.of_list(Session.tools(config, session)));
 
+let sync = pi =>
+  switch (state^) {
+  | Active(config, session)
+      when
+        Session.needsSync(
+          config,
+          session,
+          ~known=knownTools(pi),
+          ~active=Array.to_list(Pi.getActiveTools(pi)),
+        ) =>
+    apply(pi, config, session)
+  | Active(_)
+  | NotConfigured
+  | Disabled(_) => ()
+  };
+
+let guard = (event: Pi.toolCallEvent) =>
+  switch (state^) {
+  | Active(config, session)
+      when !Session.allows(config, session, event.toolName) =>
+    Js.Undefined.return({
+      Pi.block: true,
+      reason:
+        Printf.sprintf(
+          "%s is not allowed by the active tool selection (%s)",
+          event.toolName,
+          Settings.key,
+        ),
+    })
+  | Active(_)
+  | NotConfigured
+  | Disabled(_) => Js.Undefined.empty
+  };
+
 let unavailable = () =>
   switch (state^) {
   | Disabled(message) =>
@@ -73,6 +107,9 @@ let activate = pi => {
       };
     },
   );
+  Pi.onBeforeAgentStart(pi, (_event, _ctx) => sync(pi));
+  Pi.onTurnStart(pi, (_event, _ctx) => sync(pi));
+  Pi.onToolCall(pi, (event, _ctx) => guard(event));
   Pi.registerCommand(
     pi,
     "tool-preset",

@@ -32,6 +32,58 @@ describe("Session.tools", () => {
   );
 });
 
+describe("Session.allows", () => {
+  test("allows tools of the selection", () =>
+    expect(Session.allows(config, session(Some("no-bash"), []), "edit"))
+    |> toBe(true)
+  );
+
+  test("rejects tools outside the selection", () =>
+    expect(Session.allows(config, session(Some("no-bash"), []), "bash"))
+    |> toBe(false)
+  );
+});
+
+describe("Session.needsSync", () => {
+  let noBash = session(Some("no-bash"), []);
+
+  test("is in sync when the active tools match the known selection", () =>
+    expect(
+      Session.needsSync(
+        config,
+        noBash,
+        ~known=["read", "bash"],
+        ~active=["read"],
+      ),
+    )
+    |> toBe(false)
+  );
+
+  test("needs a sync when a selected tool appears", () =>
+    expect(
+      Session.needsSync(
+        config,
+        noBash,
+        ~known=["read", "edit", "bash"],
+        ~active=["read"],
+      ),
+    )
+    |> toBe(true)
+  );
+
+  test("needs a sync when a tool outside the selection is active", () =>
+    expect(
+      Session.needsSync(
+        config,
+        noBash,
+        ~known=["read", "edit", "bash"],
+        ~active=["edit", "read", "bash"],
+      ),
+    )
+    |> toBe(true)
+  );
+});
+
 describe("Session.switchPreset", () => {
   test("switches preset and resets adjustments", () =>
     expect(Session.switchPreset(config, ~known, " read-only "))

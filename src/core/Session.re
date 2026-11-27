@@ -24,6 +24,16 @@ let tools = (config: Config.t, session) =>
     session.adjustments,
   );
 
+let allows = (config, session, name) =>
+  List.mem(name, tools(config, session));
+
+let needsSync = (config, session, ~known, ~active) =>
+  !
+    Selection.sameTools(
+      List.filter(name => List.mem(name, known), tools(config, session)),
+      active,
+    );
+
 let unknownToolsError = names =>
   Error(Printf.sprintf("Unknown tools: %s", String.concat(", ", names)));
 
