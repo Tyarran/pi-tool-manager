@@ -104,7 +104,9 @@ let activate = pi => {
     (_event, ctx) => {
       state := load(pi);
       switch (state^) {
-      | Active(config, session) => apply(pi, config, session)
+      | Active(config, session) =>
+        List.iter(JsonTool.register(pi), config.tools);
+        apply(pi, config, session);
       | Disabled(_) =>
         Option.iter(
           message => Pi.notify(ctx.ui, message, `error),

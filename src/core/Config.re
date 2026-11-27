@@ -2,21 +2,12 @@ type t = {
   baseTools: list(string),
   defaultPreset: option(string),
   presets: list((string, list(string))),
+  tools: list(ToolSpec.t),
 };
 
 let path = key => Settings.key ++ "." ++ key;
 
-let all = results =>
-  List.fold_right(
-    (result, acc) =>
-      switch (result, acc) {
-      | (Ok(value), Ok(values)) => Ok([value, ...values])
-      | (Error(message), _)
-      | (_, Error(message)) => Error(message)
-      },
-    results,
-    Ok([]),
-  );
+let all = Results.all;
 
 let isModifier = entry =>
   String.length(entry) > 0 && (entry.[0] == '+' || entry.[0] == '-');
@@ -95,20 +86,28 @@ let decodeDefaultPreset = (dict, presets) =>
     Error(Printf.sprintf("%s must be a string", path("defaultPreset")))
   };
 
+let decodeTools = dict =>
+  switch (Js.Dict.get(dict, "tools")) {
+  | None => Ok([])
+  | Some(json) => ToolSpec.decode(path("tools"), json)
+  };
+
 let decode = (json: option(Js.Json.t)) =>
   switch (Option.map(Js.Json.classify, json)) {
   | None => Ok(None)
   | Some(JSONObject(dict)) =>
-    switch (decodeBaseTools(dict), decodePresets(dict)) {
-    | (Error(message), _)
-    | (_, Error(message)) => Error(message)
-    | (Ok(baseTools), Ok(presets)) =>
+    switch (decodeBaseTools(dict), decodePresets(dict), decodeTools(dict)) {
+    | (Error(message), _, _)
+    | (_, Error(message), _)
+    | (_, _, Error(message)) => Error(message)
+    | (Ok(baseTools), Ok(presets), Ok(tools)) =>
       decodeDefaultPreset(dict, presets)
       |> Result.map(defaultPreset =>
            Some({
              baseTools,
              defaultPreset,
              presets,
+             tools,
            })
          )
     }

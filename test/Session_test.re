@@ -5,6 +5,7 @@ let config: Config.t = {
   baseTools: ["read", "edit", "bash"],
   defaultPreset: Some("no-bash"),
   presets: [("no-bash", ["-bash"]), ("read-only", ["-edit", "-bash"])],
+  tools: [],
 };
 
 let known = ["read", "edit", "bash", "grep"];

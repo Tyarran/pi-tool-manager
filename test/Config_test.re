@@ -26,6 +26,7 @@ describe("Config.decode", () => {
                  ("read-only", ["-edit"]),
                  ("only-ls", ["ls", "+read"]),
                ],
+               tools: [],
              }: Config.t,
            ),
          ),
@@ -45,9 +46,23 @@ describe("Config.decode", () => {
                baseTools: [],
                defaultPreset: None,
                presets: [],
+               tools: [],
              }: Config.t,
            ),
          ),
+       )
+  );
+
+  test("reports an invalid tool definition", () =>
+    expect(
+      message(
+        decode(
+          {|{"baseTools": [], "tools": {"jj": {"description": "Run jj", "command": ["jj", "{rev}"]}}}|},
+        ),
+      ),
+    )
+    |> toEqual(
+         "pi-tool-manager.tools.jj uses an undeclared parameter \"rev\"",
        )
   );
 

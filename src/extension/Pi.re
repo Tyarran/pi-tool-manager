@@ -55,6 +55,28 @@ type signal;
 type updateCallback;
 type toolResult;
 
+type truncateOptions = {
+  maxLines: int,
+  maxBytes: int,
+};
+
+type truncation = {
+  content: string,
+  truncated: bool,
+  outputLines: int,
+  totalLines: int,
+};
+
+[@mel.module "@earendil-works/pi-coding-agent"]
+external truncateTail: (string, truncateOptions) => truncation =
+  "truncateTail";
+
+[@mel.module "@earendil-works/pi-coding-agent"]
+external defaultMaxLines: int = "DEFAULT_MAX_LINES";
+
+[@mel.module "@earendil-works/pi-coding-agent"]
+external defaultMaxBytes: int = "DEFAULT_MAX_BYTES";
+
 [@mel.get] external resultContent: toolResult => array(Js.Json.t) = "content";
 
 [@mel.set]
