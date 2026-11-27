@@ -24,14 +24,20 @@ let tools = (config: Config.t, session) =>
     session.adjustments,
   );
 
-let allows = (config, session, name) =>
-  List.mem(name, tools(config, session));
+let active = (config, session) =>
+  Selection.applyModifiers(
+    tools(config, session),
+    List.map(name => "+" ++ name, Proxy.names),
+  );
 
-let needsSync = (config, session, ~known, ~active) =>
+let allows = (config, session, name) =>
+  List.mem(name, active(config, session));
+
+let needsSync = (config, session, ~known, ~active as current) =>
   !
     Selection.sameTools(
-      List.filter(name => List.mem(name, known), tools(config, session)),
-      active,
+      List.filter(name => List.mem(name, known), active(config, session)),
+      current,
     );
 
 let unknownToolsError = names =>

@@ -18,7 +18,14 @@ let knownTools = pi =>
   |> List.map((tool: Pi.toolInfo) => tool.name);
 
 let apply = (pi, config, session) =>
-  Pi.setActiveTools(pi, Array.of_list(Session.tools(config, session)));
+  Pi.setActiveTools(pi, Array.of_list(Session.active(config, session)));
+
+let available = () =>
+  switch (state^) {
+  | Active(config, session) => Session.tools(config, session)
+  | NotConfigured
+  | Disabled(_) => []
+  };
 
 let sync = pi =>
   switch (state^) {
@@ -110,6 +117,7 @@ let activate = pi => {
   Pi.onBeforeAgentStart(pi, (_event, _ctx) => sync(pi));
   Pi.onTurnStart(pi, (_event, _ctx) => sync(pi));
   Pi.onToolCall(pi, (event, _ctx) => guard(event));
+  ToolCall.register(pi, ~available);
   Pi.registerCommand(
     pi,
     "tool-preset",

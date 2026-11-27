@@ -42,7 +42,21 @@ describe("Session.allows", () => {
     expect(Session.allows(config, session(Some("no-bash"), []), "bash"))
     |> toBe(false)
   );
+
+  test("always allows the proxy", () =>
+    expect(
+      Session.allows(config, session(Some("no-bash"), []), "tool_call"),
+    )
+    |> toBe(true)
+  );
 });
+
+describe("Session.active", () =>
+  test("adds the proxy to the selection", () =>
+    expect(Session.active(config, session(Some("read-only"), [])))
+    |> toEqual(["read", "tool_call"])
+  )
+);
 
 describe("Session.needsSync", () => {
   let noBash = session(Some("no-bash"), []);
@@ -52,8 +66,8 @@ describe("Session.needsSync", () => {
       Session.needsSync(
         config,
         noBash,
-        ~known=["read", "bash"],
-        ~active=["read"],
+        ~known=["read", "bash", "tool_call"],
+        ~active=["tool_call", "read"],
       ),
     )
     |> toBe(false)

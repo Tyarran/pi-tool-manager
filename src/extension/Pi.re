@@ -8,7 +8,10 @@ type context = {
 
 [@mel.send] external getSettings: api => Js.Dict.t(Js.Json.t) = "getSettings";
 
-type toolInfo = {name: string};
+type toolInfo = {
+  name: string,
+  parameters: Js.Json.t,
+};
 
 [@mel.send] external getAllTools: api => array(toolInfo) = "getAllTools";
 
@@ -21,6 +24,67 @@ type command = {
   description: string,
   handler: (string, context) => unit,
 };
+
+[@mel.send] external registerTool: (api, Js.t({..})) => unit = "registerTool";
+
+type agentTool = {
+  name: string,
+  description: string,
+};
+
+type loadout = {declared: array(agentTool)};
+
+[@mel.send]
+external getPromptGuidelines: (loadout, string) => array(string) =
+  "getPromptGuidelines";
+
+type loadoutChanges = {
+  descriptions: Js.Dict.t(string),
+  hiddenDeclarations: array(string),
+};
+
+type signal;
+type updateCallback;
+type toolResult;
+
+[@mel.get] external resultContent: toolResult => array(Js.Json.t) = "content";
+
+[@mel.set]
+external setResultContent: (toolResult, array(Js.Json.t)) => unit = "content";
+
+[@mel.set] external setResultIsError: (toolResult, bool) => unit = "isError";
+
+[@mel.scope "Object"]
+external copyResult: (Js.t({.}), toolResult) => toolResult = "assign";
+
+type toolOutcome = {
+  result: toolResult,
+  isError: bool,
+  durationMs: option(float),
+};
+
+type executeOptions = {
+  signal: Js.Nullable.t(signal),
+  onUpdate: Js.Nullable.t(updateCallback),
+};
+
+type toolContext;
+
+[@mel.send]
+external executeTool:
+  (toolContext, string, Js.Json.t, executeOptions) =>
+  Js.Promise.t(toolOutcome) =
+  "executeTool";
+
+type theme;
+
+[@mel.send] external fg: (theme, string, string) => string = "fg";
+[@mel.send] external bold: (theme, string) => string = "bold";
+
+type component;
+
+[@mel.new] [@mel.module "@earendil-works/pi-tui"]
+external text: (string, int, int) => component = "Text";
 
 [@mel.send]
 external registerCommand: (api, string, command) => unit = "registerCommand";
