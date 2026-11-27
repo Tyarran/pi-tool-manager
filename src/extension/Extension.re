@@ -1,35 +1,98 @@
 type state =
   | NotConfigured
   | Disabled(string)
-  | Active(Config.t);
+  | Active(Config.t, Session.t);
 
 let state = ref(NotConfigured);
 
 let load = pi =>
   switch (Config.decode(Js.Dict.get(Pi.getSettings(pi), Settings.key))) {
   | Ok(None) => NotConfigured
-  | Ok(Some(config)) => Active(config)
+  | Ok(Some(config)) => Active(config, Session.start(config))
   | Error(message) => Disabled(message)
   };
 
-let activate = pi =>
+let knownTools = pi =>
+  Pi.getAllTools(pi)
+  |> Array.to_list
+  |> List.map((tool: Pi.toolInfo) => tool.name);
+
+let apply = (pi, config, session) =>
+  Pi.setActiveTools(pi, Array.of_list(Session.tools(config, session)));
+
+let unavailable = () =>
+  switch (state^) {
+  | Disabled(message) =>
+    Some(
+      Printf.sprintf(
+        "%s is disabled, fix its configuration: %s",
+        Settings.key,
+        message,
+      ),
+    )
+  | NotConfigured =>
+    Some(Printf.sprintf("%s is not configured", Settings.key))
+  | Active(_) => None
+  };
+
+let update = (pi, ctx: Pi.context, change) =>
+  switch (state^) {
+  | Active(config, session) =>
+    switch (change(config, session)) {
+    | Error(message) => Pi.notify(ctx.ui, message, `error)
+    | Ok(session) =>
+      state := Active(config, session);
+      apply(pi, config, session);
+      Pi.notify(
+        ctx.ui,
+        Printf.sprintf(
+          "Active tools: %s",
+          String.concat(", ", Session.tools(config, session)),
+        ),
+        `info,
+      );
+    }
+  | NotConfigured
+  | Disabled(_) =>
+    Option.iter(message => Pi.notify(ctx.ui, message, `error), unavailable())
+  };
+
+let activate = pi => {
   Pi.onSessionStart(
     pi,
     (_event, ctx) => {
       state := load(pi);
       switch (state^) {
-      | Disabled(message) =>
-        Pi.notify(
-          ctx.ui,
-          Printf.sprintf(
-            "%s is disabled, fix its configuration: %s",
-            Settings.key,
-            message,
-          ),
-          `error,
+      | Active(config, session) => apply(pi, config, session)
+      | Disabled(_) =>
+        Option.iter(
+          message => Pi.notify(ctx.ui, message, `error),
+          unavailable(),
         )
-      | NotConfigured
-      | Active(_) => ()
+      | NotConfigured => ()
       };
     },
   );
+  Pi.registerCommand(
+    pi,
+    "tool-preset",
+    {
+      description: "Switch the tool preset for the current session: /tool-preset <name>",
+      handler: (args, ctx) =>
+        update(pi, ctx, (config, _session) =>
+          Session.switchPreset(config, ~known=knownTools(pi), args)
+        ),
+    },
+  );
+  Pi.registerCommand(
+    pi,
+    "tool",
+    {
+      description: "Add or remove tools for the current session: /tool +name -name",
+      handler: (args, ctx) =>
+        update(pi, ctx, (_config, session) =>
+          Session.adjust(~known=knownTools(pi), session, args)
+        ),
+    },
+  );
+};
