@@ -8,9 +8,17 @@ type context = {
 
 [@mel.send] external getSettings: api => Js.Dict.t(Js.Json.t) = "getSettings";
 
+type namespace = {
+  name: string,
+  description: option(string),
+  instructions: option(string),
+};
+
 type toolInfo = {
   name: string,
+  description: string,
   parameters: Js.Json.t,
+  namespace: option(namespace),
 };
 
 [@mel.send] external getAllTools: api => array(toolInfo) = "getAllTools";

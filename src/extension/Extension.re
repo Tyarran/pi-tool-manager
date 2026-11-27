@@ -118,6 +118,7 @@ let activate = pi => {
   Pi.onTurnStart(pi, (_event, _ctx) => sync(pi));
   Pi.onToolCall(pi, (event, _ctx) => guard(event));
   ToolCall.register(pi, ~available);
+  ToolFind.register(pi, ~available);
   Pi.registerCommand(
     pi,
     "tool-preset",

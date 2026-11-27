@@ -55,3 +55,21 @@ describe("Proxy.validate", () => {
        )
   );
 });
+
+describe("Proxy.describeFound", () => {
+  test("reports no match", () =>
+    expect(Proxy.describeFound([])) |> toEqual("No matching tools found.")
+  );
+
+  test("returns the description and schema of each match", () =>
+    expect(
+      Proxy.describeFound([
+        ("read", " Read a file. ", "{}"),
+        ("edit", "Edit a file.", "{\"type\": \"object\"}"),
+      ]),
+    )
+    |> toEqual(
+         "## read\n\nRead a file.\n\nParameters:\n```json\n{}\n```\n\n## edit\n\nEdit a file.\n\nParameters:\n```json\n{\"type\": \"object\"}\n```",
+       )
+  );
+});

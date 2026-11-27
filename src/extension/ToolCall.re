@@ -42,21 +42,6 @@ let parameters =
     { "additionalProperties": false },
   );
 
-[@mel.obj]
-external makeResult:
-  (~content: array(Js.Json.t), ~isError: bool, unit) => Pi.toolResult;
-
-let text = value =>
-  Js.Json.object_(
-    Js.Dict.fromList([
-      ("type", Js.Json.string("text")),
-      ("text", Js.Json.string(value)),
-    ]),
-  );
-
-let failure = message =>
-  makeResult(~content=[|text(message)|], ~isError=true, ());
-
 let schemaOf = (pi, name) =>
   Pi.getAllTools(pi)
   |> Js.Array.find(~f=(tool: Pi.toolInfo) => tool.name == name)
@@ -72,7 +57,9 @@ let withSchema = (pi, name, result) =>
       result,
       Js.Array.concat(
         ~other=[|
-          text("Expected parameters of " ++ name ++ ":\n" ++ schema),
+          ToolResult.text(
+            "Expected parameters of " ++ name ++ ":\n" ++ schema,
+          ),
         |],
         Pi.resultContent(result),
       ),
@@ -87,7 +74,7 @@ let execute = (pi, ~available, params: params, signal, onUpdate, ctx) =>
       ~intent=params.intent,
     )
   ) {
-  | Error(message) => Js.Promise.resolve(failure(message))
+  | Error(message) => Js.Promise.resolve(ToolResult.failure(message))
   | Ok () =>
     Pi.executeTool(
       ctx,

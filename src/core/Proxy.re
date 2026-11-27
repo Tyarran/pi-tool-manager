@@ -1,6 +1,8 @@
 let callTool = "tool_call";
 
-let names = [callTool];
+let findTool = "tool_find";
+
+let names = [callTool, findTool];
 
 let firstLine = text =>
   switch (String.split_on_char('\n', String.trim(text))) {
@@ -25,7 +27,7 @@ let describe = (~guidelines=[], tools) => {
          )
       |> String.concat("\n")
     };
-  "Call one of the available tools. Every tool is reached through tool_call: pass its name in `tool`, its parameters in `arguments`, and explain in `intent` why you call it. Invalid arguments return the expected parameter schema.\n\nAvailable tools:\n"
+  "Call one of the available tools. Every tool is reached through tool_call: pass its name in `tool`, its parameters in `arguments`, and explain in `intent` why you call it. Use tool_find to get the parameters of a tool. Invalid arguments return the expected parameter schema.\n\nAvailable tools:\n"
   ++ catalog
   ++ (
     switch (guidelines) {
@@ -51,4 +53,20 @@ let validate = (~available, ~tool, ~intent) =>
     Error(unavailable(~available, tool));
   } else {
     Ok();
+  };
+
+let describeFound = found =>
+  switch (found) {
+  | [] => "No matching tools found."
+  | found =>
+    found
+    |> List.map(((name, description, schema)) =>
+         Printf.sprintf(
+           "## %s\n\n%s\n\nParameters:\n```json\n%s\n```",
+           name,
+           String.trim(description),
+           schema,
+         )
+       )
+    |> String.concat("\n\n")
   };

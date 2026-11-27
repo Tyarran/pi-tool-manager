@@ -54,7 +54,7 @@ describe("Session.allows", () => {
 describe("Session.active", () =>
   test("adds the proxy to the selection", () =>
     expect(Session.active(config, session(Some("read-only"), [])))
-    |> toEqual(["read", "tool_call"])
+    |> toEqual(["read", "tool_call", "tool_find"])
   )
 );
 
