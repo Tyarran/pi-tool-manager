@@ -1,0 +1,11 @@
+(melange.emit
+ (target jest)
+ (libraries
+  pi_tool_manager
+  pi_tool_manager_core
+  pi_tool_manager_bindings
+  melange-jest.jest)
+ (module_systems
+  (commonjs cjs))
+ (preprocess
+  (pps melange.ppx)))
